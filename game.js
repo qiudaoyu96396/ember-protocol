@@ -32,6 +32,8 @@ const bullets = [];
 //创建敌人数组和生成计时器
 const enemies = [];
 const particles = [];
+const enemyBullets = [];
+let boss = null;
 let shake = 0;
 
 let spawnTimer = 0.8;
@@ -193,6 +195,14 @@ function chooseUpgrade(index) {
   waveBanner = 2.5;
   spawnTimer = 0.4;
 
+  enemyBullets.length = 0;
+  boss = null;
+
+  if (wave % 3 === 0) {
+    enemies.length = 0;
+    spawnBoss();
+  }
+
   canvas.focus();
 }
 
@@ -260,6 +270,8 @@ function restartGame() {
 
   bullets.length = 0;
   enemies.length = 0;
+  enemyBullets.length = 0;
+  boss = null;
 
   spawnTimer = 0.8;
   damageFlash = 0;
@@ -372,6 +384,133 @@ soundButton.addEventListener("click", () => {
 //动态生成间隔
 function getSpawnInterval() {
   return Math.max(0.35, 1.2 - (wave - 1) * 0.09);
+}
+
+//创建boss
+function spawnBoss() {
+  const bossNumber = Math.floor(wave / 3);
+  const maxHealth = 60 + (bossNumber - 1) * 35;
+
+  boss = {
+    x: WIDTH / 2,
+    y: -70,
+    radius: 46,
+    speed: 1,
+    health: maxHealth,
+    maxHealth,
+    damage: 18,
+    points: 1200 + wave * 250,
+    flash: 0,
+    age: 0,
+    shootTimer: 1.2,
+    alive: true,
+  };
+
+  spawnBurst(WIDTH / 2, -20, "#e562ff", 34, 180);
+  shake = 9;
+}
+
+//Boss子弹
+function fireBossBullets() {
+  if (!boss || !boss.alive) {
+    return;
+  }
+
+  const healthRatio = boss.health / boss.maxHealth;
+  const phaseTwo = healthRatio <= 0.5;
+
+  const count = phaseTwo ? 14 : 10;
+  const speed = phaseTwo ? 205 : 165;
+
+  for (let i = 0; i < count; i += 1) {
+    const angle =
+      (i / count) * Math.PI * 2 +
+      boss.age * 0.35;
+
+    enemyBullets.push({
+      x: boss.x,
+      y: boss.y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      radius: 7,
+      damage: 12,
+      life: 5,
+    });
+  }
+
+  spawnBurst(boss.x, boss.y, "#ffb54a", 12, 125);
+  shake = Math.max(shake, 3);
+  audio.hit();
+}
+
+//更新boss
+function updateBoss(dt) {
+  if (!boss || !boss.alive) {
+    return;
+  }
+
+  boss.age += dt;
+  boss.flash = Math.max(0, boss.flash - dt);
+  boss.shootTimer -= dt;
+
+  const targetX =
+    WIDTH / 2 + Math.sin(boss.age * 0.75) * 210;
+
+  const targetY =
+    115 + Math.sin(boss.age * 1.4) * 25;
+
+  boss.x += (targetX - boss.x) * Math.min(1, dt * 1.5);
+  boss.y += (targetY - boss.y) * Math.min(1, dt * 1.8);
+
+  const healthRatio = boss.health / boss.maxHealth;
+
+  if (boss.shootTimer <= 0) {
+    fireBossBullets();
+    boss.shootTimer = healthRatio <= 0.5 ? 0.95 : 1.55;
+  }
+
+  const dx = player.x - boss.x;
+  const dy = player.y - boss.y;
+  const distance = Math.hypot(dx, dy);
+
+  if (distance < player.radius + boss.radius) {
+    damagePlayer(boss.damage, boss);
+  }
+}
+
+//更新boss子弹
+function updateEnemyBullets(dt) {
+  for (const bullet of enemyBullets) {
+    bullet.x += bullet.vx * dt;
+    bullet.y += bullet.vy * dt;
+    bullet.life -= dt;
+
+    const dx = player.x - bullet.x;
+    const dy = player.y - bullet.y;
+    const distance = Math.hypot(dx, dy);
+
+    if (
+      bullet.life > 0 &&
+      distance < player.radius + bullet.radius
+    ) {
+      damagePlayer(bullet.damage, bullet);
+      bullet.life = 0;
+    }
+  }
+
+  for (let i = enemyBullets.length - 1; i >= 0; i -= 1) {
+    const bullet = enemyBullets[i];
+
+    const outside =
+      bullet.x < -40 ||
+      bullet.x > WIDTH + 40 ||
+      bullet.y < -40 ||
+      bullet.y > HEIGHT + 40;
+
+    if (bullet.life <= 0 || outside) {
+      enemyBullets.splice(i, 1);
+    }
+  }
 }
 
 //粒子生成
@@ -524,6 +663,26 @@ function killEnemy(enemy) {
   spawnBurst(enemy.x, enemy.y, "#ff526b", 20, 190);
   shake = Math.max(shake, 6);
   audio.kill();
+}
+
+//击杀boss
+function killBoss() {
+  if (!boss || !boss.alive) {
+    return;
+  }
+
+  boss.alive = false;
+  kills += 1;
+  score += boss.points;
+
+  spawnBurst(boss.x, boss.y, "#e562ff", 55, 280);
+  spawnBurst(boss.x, boss.y, "#ffb54a", 30, 190);
+
+  shake = 16;
+  damageFlash = 0;
+  audio.kill();
+
+  openUpgradeScreen();
 }
 
 //合成音效
@@ -731,6 +890,37 @@ audio.hit();
 
       break;
     }
+    if (
+  bullet.life > 0 &&
+  boss &&
+  boss.alive
+) {
+  const dx = bullet.x - boss.x;
+  const dy = bullet.y - boss.y;
+  const distance = Math.hypot(dx, dy);
+
+  if (distance < bullet.radius + boss.radius) {
+    boss.health -= bullet.damage;
+    boss.flash = 0.08;
+    bullet.life = 0;
+
+    spawnBurst(
+      bullet.x,
+      bullet.y,
+      "#e562ff",
+      5,
+      95
+    );
+
+    shake = Math.max(shake, 2);
+    audio.hit();
+
+    if (boss.health <= 0) {
+      boss.health = 0;
+      killBoss();
+    }
+  }
+}
   }
 
   for (let i = bullets.length - 1; i >= 0; i -= 1) {
@@ -815,20 +1005,24 @@ if (input.pointer.down && input.pointer.inside) {
 
 spawnTimer -= dt;
 
-if (spawnTimer <= 0) {
+if (!boss && spawnTimer <= 0) {
   spawnEnemy();
-  spawnTimer=1.2;
+  spawnTimer = getSpawnInterval();
 }
 
 updateEnemies(dt);
+updateBoss(dt);
+updateEnemyBullets(dt);
 updateBullets(dt);
-
 //推进波次
-waveTime -= dt;
 waveBanner = Math.max(0, waveBanner - dt);
 
-if (waveTime <= 0) {
-  openUpgradeScreen();
+if (!boss) {
+  waveTime -= dt;
+
+  if (waveTime <= 0) {
+    openUpgradeScreen();
+  }
 }
 }
 
@@ -906,6 +1100,60 @@ function drawPlayer() {
   ctx.restore();
 }
 
+//绘制boss
+function drawBoss() {
+  if (!boss || !boss.alive) {
+    return;
+  }
+
+  ctx.save();
+  ctx.translate(boss.x, boss.y);
+
+  ctx.shadowColor = "#e562ff";
+  ctx.shadowBlur = boss.flash > 0 ? 35 : 22;
+
+  ctx.fillStyle =
+    boss.flash > 0 ? "#ffffff" : "#e562ff";
+
+  ctx.beginPath();
+
+  for (let i = 0; i < 8; i += 1) {
+    const angle =
+      (i / 8) * Math.PI * 2 +
+      boss.age * 0.12;
+
+    const x = Math.cos(angle) * boss.radius;
+    const y = Math.sin(angle) * boss.radius;
+
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  }
+
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "#071014";
+  ctx.beginPath();
+  ctx.arc(0, 0, 22, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#ffb54a";
+  ctx.beginPath();
+  ctx.arc(0, 0, 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.arc(0, 0, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
 //绘制敌人
 function drawEnemies() {
   for (const enemy of enemies) {
@@ -962,6 +1210,45 @@ function drawEnemies() {
   }
 }
 
+//绘制boss子弹
+function drawEnemyBullets() {
+  ctx.save();
+
+  for (const bullet of enemyBullets) {
+    ctx.shadowColor = "#ffb54a";
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = "#ffb54a";
+
+    ctx.beginPath();
+    ctx.arc(
+      bullet.x,
+      bullet.y,
+      bullet.radius,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#fff4ce";
+
+    ctx.beginPath();
+    ctx.arc(
+      bullet.x,
+      bullet.y,
+      bullet.radius * 0.35,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+//绘制子弹
 function drawBullets() {
   ctx.save();
   ctx.lineCap = "round";
@@ -1082,27 +1369,40 @@ function drawHud() {
     barY + 22
   );
 
-  ctx.textAlign = "center";
-  ctx.fillStyle = "#82aaa5";
-  ctx.fillText(
-    `WAVE ${String(wave).padStart(2, "0")}`,
-    WIDTH / 2,
-    15
-  );
+  const showingBoss = boss && boss.alive;
 
-  const waveWidth = 230;
-  const waveRatio = Math.max(0, waveTime / WAVE_DURATION);
+ctx.textAlign = "center";
+ctx.fillStyle = showingBoss ? "#e562ff" : "#82aaa5";
 
-  ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
-  ctx.fillRect(WIDTH / 2 - waveWidth / 2, 34, waveWidth, 4);
+ctx.fillText(
+  showingBoss
+    ? "APEX SIGNAL"
+    : `WAVE ${String(wave).padStart(2, "0")}`,
+  WIDTH / 2,
+  15
+);
 
-  ctx.fillStyle = "#ffb54a";
-  ctx.fillRect(
-    WIDTH / 2 - waveWidth / 2,
-    34,
-    waveWidth * waveRatio,
-    4
-  );
+const topBarWidth = 230;
+
+const progress = showingBoss
+  ? boss.health / boss.maxHealth
+  : Math.max(0, waveTime / WAVE_DURATION);
+
+ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+ctx.fillRect(
+  WIDTH / 2 - topBarWidth / 2,
+  34,
+  topBarWidth,
+  6
+);
+
+ctx.fillStyle = showingBoss ? "#e562ff" : "#ffb54a";
+ctx.fillRect(
+  WIDTH / 2 - topBarWidth / 2,
+  34,
+  topBarWidth * Math.max(0, progress),
+  6
+);
 
   ctx.textAlign = "right";
   ctx.fillStyle = "#82aaa5";
@@ -1141,18 +1441,22 @@ function drawWaveBanner() {
   ctx.fillStyle = "#eaf8f4";
   ctx.font = '800 34px "Bahnschrift", sans-serif';
   ctx.fillText(
-    `WAVE ${String(wave).padStart(2, "0")}`,
-    WIDTH / 2,
-    HEIGHT / 2 - 70
-  );
+  boss && boss.alive
+    ? "APEX SIGNAL"
+    : `WAVE ${String(wave).padStart(2, "0")}`,
+  WIDTH / 2,
+  HEIGHT / 2 - 70
+);
 
   ctx.fillStyle = "#61f7dc";
   ctx.font = '600 11px "Consolas", monospace';
   ctx.fillText(
-    "SIGNAL STRENGTH INCREASING",
-    WIDTH / 2,
-    HEIGHT / 2 - 46
-  );
+  boss && boss.alive
+    ? "BOSS SIGNAL DETECTED"
+    : "SIGNAL STRENGTH INCREASING",
+  WIDTH / 2,
+  HEIGHT / 2 - 46
+);
 
   ctx.restore();
 }
@@ -1168,7 +1472,9 @@ function render() {
   }
 
   drawBackground();
+  drawBoss();
   drawEnemies();
+  drawEnemyBullets();
   drawBullets();
   drawPlayer();
   drawParticles();
