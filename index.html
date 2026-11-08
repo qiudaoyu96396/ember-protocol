@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>余烬协议</title>
+    <meta
+      name="description"
+      content="余烬协议：一个使用原生 JavaScript 制作的 2D 生存射击游戏。"
+    />
+    <meta name="theme-color" content="#03090c" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="stage">
+      <canvas
+  id="gameCanvas"
+  width="960"
+  height="540"
+  tabindex="0"
+></canvas>
+
+<div id="upgradeOverlay" class="upgrade-overlay" hidden>
+  <section class="upgrade-panel">
+    <p class="upgrade-eyebrow">Wave Complete</p>
+    <h2>选择强化</h2>
+    <p class="upgrade-description">
+      选择一个模块，然后进入下一波。
+    </p>
+
+    <div id="upgradeOptions" class="upgrade-options"></div>
+
+    <p class="upgrade-hint">
+      点击卡片，或按数字键 1、2、3
+    </p>
+  </section>
+</div>
+<div id="mainMenu" class="screen-overlay">
+  <section class="menu-panel">
+    <p class="menu-eyebrow">Survival Protocol // Build 01</p>
+    <h1>余烬协议</h1>
+    <p class="menu-lede">
+      你是最后一座信标。守住位置，清理故障体，
+      在每一波结束后重构你的武器。
+    </p>
+
+    <div class="menu-controls">
+      <span><b>WASD</b> 移动</span>
+      <span><b>鼠标</b> 瞄准与射击</span>
+      <span><b>P</b> 暂停</span>
+    </div>
+
+    <button id="startButton" class="menu-button" type="button">
+      开始行动
+    </button>
+
+    <p class="high-score-line">
+      最高记录
+      <strong id="highScoreText">000000</strong>
+    </p>
+  </section>
+</div>
+
+<div id="pauseOverlay" class="screen-overlay" hidden>
+  <section class="menu-panel">
+    <p class="menu-eyebrow">Connection Paused</p>
+    <h2>协议暂停</h2>
+    <p class="menu-lede">
+      当前任务已冻结，确认后返回战场。
+    </p>
+
+    <div class="menu-actions">
+      <button id="resumeButton" class="menu-button" type="button">
+        继续行动
+      </button>
+
+      <button id="menuButton" class="menu-button secondary" type="button">
+        返回主菜单
+      </button>
+    </div>
+
+    <p class="menu-hint">按 P 或 ESC 也可以继续</p>
+  </section>
+</div>
+
+<button
+  id="soundButton"
+  class="sound-button"
+  type="button"
+  aria-label="关闭声音"
+>
+  声音：开
+</button>
+
+    </main>
+
+    <script src="game.js" defer></script>
+  </body>
+</html>
